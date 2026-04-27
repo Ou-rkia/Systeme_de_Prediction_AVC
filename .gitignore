@@ -1,21 +1,36 @@
-# VS Code / Visual Studio
-.vs/
-
 # Python
 __pycache__/
 *.pyc
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
 
-# Environnements virtuels
+# Environnements
+.venv/
 venv/
-.env/
+env/
 
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
+# Données (trackées par DVC)
+data/raw/
+data/processed/
+*.csv
 
-# Logs / MLflow
+# Modèles volumineux
+models/trained/*.joblib
+models/preprocessors/*.joblib
+
+# MLflow
 mlruns/
-*.log
 
-# OS files
+# DVC
+.dvc/cache/
+
+# Système
 .DS_Store
-Thumbs.db
+*.log
+*.tmp
+
+# VS Code
+.vscode/
