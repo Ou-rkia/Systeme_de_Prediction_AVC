@@ -1,0 +1,8 @@
+{
+  "model_name": "SVM",
+  "run_id": "26073abc2f1942a3a44f920f2581e2db",
+  "test_f1": 0.91,
+  "test_recall": 0.91,
+  "test_auc_roc": 0.9726,
+  "registered_at": "2026-04-27T13:13:02.551044"
+}

@@ -1,0 +1,21 @@
+# VS Code / Visual Studio
+.vs/
+
+# Python
+__pycache__/
+*.pyc
+
+# Environnements virtuels
+venv/
+.env/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Logs / MLflow
+mlruns/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
