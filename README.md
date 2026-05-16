@@ -214,7 +214,7 @@ python run_pipeline.py
 ### Option B — Étape par étape
 
 ```bash
-# Étape 1 — Générer les données simulées
+# Étape 1 — Charger le dataset existant ou générer si absent
 python etape1_generation_donnees.py
 
 # Étape 2 — Analyse exploratoire (graphiques → reports/)

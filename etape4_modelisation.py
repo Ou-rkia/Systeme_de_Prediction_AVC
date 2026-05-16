@@ -22,7 +22,7 @@ from sklearn.model_selection import (StratifiedKFold, RandomizedSearchCV)
 from sklearn.metrics         import (accuracy_score, precision_score,
                                       recall_score, f1_score, roc_auc_score,
                                       confusion_matrix, classification_report,
-                                      RocCurveDisplay)
+                                      RocCurveDisplay, precision_recall_curve)
 warnings.filterwarnings("ignore")
 
 PROCESSED_DIR = Path("data/processed")
@@ -74,13 +74,14 @@ def get_configs():
                 probability=True,
                 random_state=SEED,
                 cache_size=500,     # Cache mémoire (Mo) pour accélérer
+                class_weight="balanced",
             ),
             "params": {
                 "C":      [0.1, 1.0, 10.0],
                 "kernel": ["rbf", "linear"],
                 "gamma":  ["scale", "auto"],
             },
-            "n_iter": 6,
+            "n_iter": 8,
         },
 
         # XGBoost : tree_method="hist" = algorithme rapide sur CPU
@@ -94,14 +95,14 @@ def get_configs():
                 n_jobs=-1,            # ← Utilise tous les cœurs CPU
             ),
             "params": {
-                "n_estimators":      [100, 200],
-                "max_depth":         [3, 5],
-                "learning_rate":     [0.1, 0.2],
-                "subsample":         [0.8, 1.0],
-                "colsample_bytree":  [0.8, 1.0],
-                "scale_pos_weight":  [1, 3],
+                "n_estimators":      [100, 200, 300],
+                "max_depth":         [3, 5, 7],
+                "learning_rate":     [0.05, 0.1, 0.2],
+                "subsample":         [0.7, 0.8, 1.0],
+                "colsample_bytree":  [0.7, 0.8, 1.0],
+                "scale_pos_weight":  [1, 2, 5],
             },
-            "n_iter": 8,
+            "n_iter": 10,
         },
     }
 
@@ -123,9 +124,23 @@ def tune(name, model, params, n_iter, X_tr, y_tr):
 
 
 # ── Évaluation ────────────────────────────────────────────────
+def select_threshold_for_recall(y_true, y_scores, min_recall=0.80):
+    precisions, recalls, thresholds = precision_recall_curve(y_true, y_scores)
+    best_threshold = 0.5
+    best_precision = 0.0
+    for precision, recall, threshold in zip(precisions[:-1], recalls[:-1], thresholds):
+        if recall >= min_recall and precision > best_precision:
+            best_precision = precision
+            best_threshold = threshold
+    return best_threshold, best_precision
+
+
 def evaluate(name, model, X_te, y_te):
     y_pred  = model.predict(X_te)
     y_proba = model.predict_proba(X_te)[:, 1]
+
+    threshold, threshold_precision = select_threshold_for_recall(y_te, y_proba, min_recall=0.80)
+    y_pred_thr = (y_proba >= threshold).astype(int)
 
     m = {
         "model":     name,
@@ -135,14 +150,29 @@ def evaluate(name, model, X_te, y_te):
         "f1":        round(f1_score(y_te, y_pred),                 4),
         "auc_roc":   round(roc_auc_score(y_te, y_proba),           4),
     }
+
+    m_threshold = {
+        "model":     name + " (threshold)",
+        "accuracy":  round(accuracy_score(y_te, y_pred_thr),          4),
+        "precision": round(precision_score(y_te, y_pred_thr, zero_division=0), 4),
+        "recall":    round(recall_score(y_te, y_pred_thr),             4),
+        "f1":        round(f1_score(y_te, y_pred_thr),                 4),
+        "auc_roc":   round(roc_auc_score(y_te, y_proba),           4),
+    }
+
     print(f"\n  ── {name} — Test Set ──")
     for k, v in m.items():
         if k != "model":
             flag = " ← métrique principale" if k == "recall" else ""
             print(f"    {k:12s}: {v:.4f}{flag}")
 
-    print(f"\n{classification_report(y_te, y_pred, target_names=['Pas AVC','AVC'])}")
-    return m
+    print(f"\n  Seuil ajusté pour recall >= 0.80 : {threshold:.2f} (precision {threshold_precision:.4f})")
+    for k, v in m_threshold.items():
+        if k != "model":
+            print(f"    {k:12s}: {v:.4f}")
+
+    print(f"\n{classification_report(y_te, y_pred_thr, target_names=['Pas AVC','AVC'])}")
+    return m, m_threshold
 
 
 # ── Visualisations ────────────────────────────────────────────
@@ -181,7 +211,7 @@ def plot_roc(models_dict, X_te, y_te):
     print("✅ Graphique sauvegardé → reports/08_roc_curves.png")
 
 
-def plot_metrics(results):
+def plot_metrics(results, filename="09_metrics_comparison.png", title="Comparaison des modèles"):
     df = pd.DataFrame(results)
     metrics = ["accuracy", "precision", "recall", "f1", "auc_roc"]
     melt = df.melt(id_vars="model", value_vars=metrics,
@@ -191,7 +221,7 @@ def plot_metrics(results):
     sns.barplot(data=melt, x="Métrique", y="Score", hue="model",
                 palette=["#4C9BE8", "#E8574C", "#4CAF50"], ax=ax)
     ax.set_ylim(0, 1.15)
-    ax.set_title("Comparaison des modèles", fontweight="bold")
+    ax.set_title(title, fontweight="bold")
     ax.axhline(0.8, color="gray", linestyle="--", alpha=0.5)
 
     for p in ax.patches:
@@ -199,9 +229,9 @@ def plot_metrics(results):
                     (p.get_x() + p.get_width() / 2., p.get_height()),
                     ha="center", va="bottom", fontsize=8)
     plt.tight_layout()
-    fig.savefig(REPORTS_DIR / "09_metrics_comparison.png")
+    fig.savefig(REPORTS_DIR / filename)
     plt.close(fig)
-    print("✅ Graphique sauvegardé → reports/09_metrics_comparison.png")
+    print(f"✅ Graphique sauvegardé → reports/{filename}")
 
 
 # ── Pipeline complet ──────────────────────────────────────────
@@ -212,6 +242,7 @@ def run_modeling():
     configs  = get_configs()
     trained  = {}
     results  = []
+    results_threshold = []
 
     for name, cfg in configs.items():
         print(f"\n{'='*50}\n  Modèle : {name}\n{'='*50}")
@@ -220,9 +251,11 @@ def run_modeling():
                      cfg["n_iter"], X_tr, y_tr)
         elapsed = round(time.time() - t0, 1)
 
-        m = evaluate(name, model, X_te, y_te)
+        m, m_threshold = evaluate(name, model, X_te, y_te)
         m["temps_s"] = elapsed
+        m_threshold["temps_s"] = elapsed
         results.append(m)
+        results_threshold.append(m_threshold)
         trained[name] = model
 
         joblib.dump(model, MODELS_DIR / f"best_model_{name.lower()}.joblib")
@@ -247,6 +280,9 @@ def run_modeling():
     plot_conf_matrices(trained, X_te, y_te)
     plot_roc(trained, X_te, y_te)
     plot_metrics(results)
+    plot_metrics(results_threshold,
+                 filename="10_metrics_comparison_threshold.png",
+                 title="Comparaison des modèles (seuil ajusté)")
 
     print("\n✅ Modélisation terminée.")
     return trained, results, best["model"]

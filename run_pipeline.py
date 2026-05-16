@@ -23,7 +23,7 @@ def banner(step, title):
 def run_step1():
     banner(1, "GÉNÉRATION DES DONNÉES")
     import etape1_generation_donnees as e1
-    return e1.generate_dataset()
+    return e1.load_or_generate_dataset()
 
 
 def run_step2():
@@ -52,7 +52,7 @@ def run_step5():
 
 def run_step6():
     banner(6, "GÉNÉRATION DES MODULES src/")
-    exec(open("etape6_structure_projet.py").read())
+    exec(open("etape6_structure_projet.py", encoding="utf-8").read())
 
 
 def run_step7_test():
@@ -95,7 +95,7 @@ def run_step8():
 
 def run_step9():
     banner(9, "GÉNÉRATION FICHIERS DOCKER")
-    exec(open("etape9_docker.py").read())
+    exec(open("etape9_docker.py", encoding="utf-8").read())
 
 
 # ── Pipeline complet ──────────────────────────────────────────

@@ -13,6 +13,7 @@ np.random.seed(SEED)
 N_STROKE    = 500
 N_NO_STROKE = 500
 OUTPUT_PATH = "data/raw/stroke_data.csv"
+DATA_PATH = Path(OUTPUT_PATH)
 
 
 def generate_stroke_cases(n):
@@ -67,10 +68,11 @@ def generate_dataset():
     idx = df.sample(frac=0.13, random_state=SEED).index
     df.loc[idx, "bmi"] = np.nan
 
-    Path(OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(OUTPUT_PATH, index=False)
+    output_path = Path(OUTPUT_PATH)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_path, index=False)
 
-    print(f"✅ Dataset sauvegardé → {OUTPUT_PATH}")
+    print(f"Dataset sauvegarde -> {output_path}")
     print(f"   Lignes       : {len(df)}")
     print(f"   AVC (1)      : {df['stroke'].sum()}")
     print(f"   Sain (0)     : {(df['stroke']==0).sum()}")
@@ -78,6 +80,15 @@ def generate_dataset():
     return df
 
 
+def load_or_generate_dataset(force_generate=False):
+    if DATA_PATH.exists() and not force_generate:
+        print(f"Fichier existant trouve -> {DATA_PATH}")
+        print("   Utilisation des donnees reales existantes sans regeneration.")
+        return pd.read_csv(DATA_PATH)
+
+    return generate_dataset()
+
+
 if __name__ == "__main__":
-    df = generate_dataset()
+    df = load_or_generate_dataset()
     print(df.head())

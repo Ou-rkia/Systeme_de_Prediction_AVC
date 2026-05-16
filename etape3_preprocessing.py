@@ -7,6 +7,10 @@ import numpy as np
 import pandas as pd
 import joblib
 from pathlib import Path
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from sklearn.model_selection  import train_test_split
 from sklearn.pipeline         import Pipeline
@@ -18,8 +22,10 @@ from imblearn.over_sampling   import SMOTE
 DATA_PATH        = "data/raw/stroke_data.csv"
 PROCESSED_DIR    = Path("data/processed")
 PREPROCESSOR_DIR = Path("models/preprocessors")
+REPORTS_DIR      = Path("reports")
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 PREPROCESSOR_DIR.mkdir(parents=True, exist_ok=True)
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 TARGET_COL       = "stroke"
 DROP_COLS        = ["id"]
@@ -62,8 +68,35 @@ def build_preprocessor():
 
 
 # ── Pipeline complet ──────────────────────────────────────────
+def plot_class_balance(before, after=None):
+    data = []
+    if before is not None:
+        for label, count in before.items():
+            data.append({"stage": "Avant SMOTE", "stroke": int(label), "count": int(count)})
+    if after is not None:
+        for label, count in after.items():
+            data.append({"stage": "Après SMOTE", "stroke": int(label), "count": int(count)})
+
+    df_plot = pd.DataFrame(data)
+    fig, ax = plt.subplots(figsize=(6, 4))
+    sns.barplot(data=df_plot, x="stroke", y="count", hue="stage", ax=ax)
+    ax.set_title("Équilibre des classes avant/après SMOTE")
+    ax.set_xlabel("stroke")
+    ax.set_ylabel("Nombre de cas")
+    ax.set_xticks([0, 1])
+    ax.set_ylim(0, df_plot["count"].max() * 1.1)
+    for p in ax.patches:
+        height = p.get_height()
+        ax.annotate(f"{int(height)}", (p.get_x() + p.get_width() / 2, height),
+                    ha="center", va="bottom", fontsize=9)
+    plt.tight_layout()
+    plt.savefig(REPORTS_DIR / "class_balance_smote.png")
+    plt.close(fig)
+    print(f"  Visualisation équilibrage sauvegardée -> {REPORTS_DIR / 'class_balance_smote.png'}")
+
+
 def run_preprocessing(path=DATA_PATH):
-    print("\n🔧 DÉMARRAGE PREPROCESSING\n")
+    print("\nDEMARRAGE PREPROCESSING\n")
 
     df = clean(pd.read_csv(path))
     print(f"  Shape après nettoyage : {df.shape}")
@@ -79,14 +112,22 @@ def run_preprocessing(path=DATA_PATH):
     X_train_p = prep.fit_transform(X_train)
     X_test_p  = prep.transform(X_test)
 
-    print(f"\n  Avant SMOTE : {dict(zip(*np.unique(y_train, return_counts=True)))}")
+    balance_before = y_train.value_counts().sort_index()
+    print(f"\n  Avant SMOTE : {balance_before.to_dict()}")
+    plot_class_balance(balance_before, None)
+
+    print("  Application de SMOTE... ")
     if len(set(y_train)) > 1 and y_train.value_counts().min() < y_train.value_counts().max():
-       from imblearn.over_sampling import SMOTE
        smote = SMOTE(random_state=42)
        X_train_p, y_train = smote.fit_resample(X_train_p, y_train)
-       print("Après SMOTE :", y_train.value_counts().to_dict())
+       balance_after = pd.Series(y_train).value_counts().sort_index()
+       print("Après SMOTE :", balance_after.to_dict())
+       plot_class_balance(balance_before, balance_after)
     else:
+       balance_after = balance_before.copy()
        print("⚠️ SMOTE skipped (data already balanced)")
+       plot_class_balance(balance_before, balance_after)
+
     print(f"  Après SMOTE : {dict(zip(*np.unique(y_train, return_counts=True)))}")
 
     # Noms des features
@@ -106,10 +147,10 @@ def run_preprocessing(path=DATA_PATH):
     train_df.to_csv(PROCESSED_DIR / "train.csv", index=False)
     test_df.to_csv( PROCESSED_DIR / "test.csv",  index=False)
 
-    print(f"\n✅ Preprocessing terminé")
-    print(f"   Preprocessor → models/preprocessors/stroke_preprocessor.joblib")
-    print(f"   Train CSV    → data/processed/train.csv  ({len(train_df)} lignes)")
-    print(f"   Test CSV     → data/processed/test.csv   ({len(test_df)} lignes)")
+    print("\nPreprocessing termine")
+    print("   Preprocessor -> models/preprocessors/stroke_preprocessor.joblib")
+    print(f"   Train CSV    -> data/processed/train.csv  ({len(train_df)} lignes)")
+    print(f"   Test CSV     -> data/processed/test.csv   ({len(test_df)} lignes)")
 
     return X_train_p, X_test_p, y_train, y_test, feature_names
 
