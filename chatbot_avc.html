@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StrokePredict — Chatbot AVC</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #181c26;
+      --card:     #1e2333;
+      --border:   rgba(255,255,255,0.08);
+      --accent:   #1fc87a;
+      --accent2:  #155e3b;
+      --text:     #e8eaf0;
+      --muted:    #7a8299;
+      --danger:   #e85555;
+      --warn:     #e8a025;
+      --ok:       #1fc87a;
+      --font:     'IBM Plex Sans', sans-serif;
+      --radius:   12px;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 0 1rem;
+    }
+    .logo {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: var(--accent2);
+      border: 1px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .app-title { font-size: 18px; font-weight: 500; }
+    .app-sub   { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .status-pill {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(31,200,122,0.12);
+      border: 1px solid rgba(31,200,122,0.25);
+      font-size: 12px; color: var(--accent);
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Chat window ── */
+    .chat-window {
+      width: 100%;
+      max-width: 680px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      height: 540px;
+      overflow: hidden;
+    }
+
+    /* ── Mode selector ── */
+    .mode-bar {
+      display: flex;
+      gap: 6px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .mode-btn {
+      padding: 5px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .mode-btn.active {
+      background: var(--accent2);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .mode-btn:hover:not(.active) { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+    /* ── Messages ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .msg { display: flex; gap: 10px; max-width: 88%; }
+    .msg.bot  { align-self: flex-start; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    .avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+      background: var(--accent2); border: 1px solid rgba(31,200,122,0.3);
+    }
+    .avatar.user-av {
+      background: rgba(55,138,221,0.2);
+      border: 1px solid rgba(55,138,221,0.3);
+      font-size: 11px; font-weight: 500; color: #85b7eb;
+    }
+
+    .bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .msg.bot .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      color: var(--text);
+    }
+    .msg.user .bubble {
+      background: rgba(31,200,122,0.15);
+      border: 1px solid rgba(31,200,122,0.25);
+      border-bottom-right-radius: 4px;
+      color: var(--text);
+    }
+    .bubble ul { padding-left: 18px; margin-top: 6px; }
+    .bubble li { margin-bottom: 3px; }
+    .bubble strong { font-weight: 500; color: #c5d0f0; }
+    .bubble em { color: var(--muted); font-style: normal; font-size: 13px; }
+
+    /* Risk badges */
+    .risk-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px; font-weight: 500;
+    }
+    .risk-faible  { background: rgba(31,200,122,.15); border: 1px solid rgba(31,200,122,.3); color: var(--ok); }
+    .risk-modere  { background: rgba(232,160,37,.12); border: 1px solid rgba(232,160,37,.3); color: var(--warn); }
+    .risk-eleve   { background: rgba(232,85,85,.12);  border: 1px solid rgba(232,85,85,.3);  color: var(--danger); }
+
+    /* Typing indicator */
+    .typing {
+      display: flex; gap: 5px; align-items: center;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; border-bottom-left-radius: 4px;
+      width: fit-content;
+    }
+    .typing span {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted);
+      animation: bob 1.2s infinite;
+    }
+    .typing span:nth-child(2) { animation-delay: .2s; }
+    .typing span:nth-child(3) { animation-delay: .4s; }
+    @keyframes bob { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+    /* ── Quick buttons ── */
+    .quick-bar {
+      padding: 8px 14px;
+      display: flex; gap: 6px; flex-wrap: wrap;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .qbtn {
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 12px; font-family: var(--font);
+      background: transparent; color: var(--muted);
+      cursor: pointer; transition: all .15s;
+    }
+    .qbtn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+    /* ── Input area ── */
+    .input-area {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      display: flex; gap: 8px; align-items: flex-end;
+      background: var(--card);
+    }
+    #user-input {
+      flex: 1; resize: none;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 14px; font-family: var(--font);
+      background: var(--surface); color: var(--text);
+      outline: none;
+      min-height: 38px; max-height: 100px;
+      line-height: 1.4;
+      transition: border-color .15s;
+    }
+    #user-input:focus { border-color: rgba(31,200,122,.5); }
+    #user-input::placeholder { color: var(--muted); }
+
+    #send-btn {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--accent); border: none;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .15s, transform .1s;
+      flex-shrink: 0;
+    }
+    #send-btn:hover  { background: #25e88a; }
+    #send-btn:active { transform: scale(.94); }
+    #send-btn:disabled { background: var(--surface); cursor: not-allowed; }
+    #send-btn svg { width: 16px; height: 16px; fill: none; stroke: #0f1117; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    #send-btn:disabled svg { stroke: var(--muted); }
+
+    /* ── Disclaimer ── */
+    .disclaimer {
+      font-size: 11px; color: var(--muted);
+      text-align: center; padding: 8px 14px 2px;
+      background: var(--card);
+    }
+
+    /* ── Config panel ── */
+    .config-panel {
+      width: 100%; max-width: 680px;
+      margin-top: 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: none;
+    }
+    .config-panel.open { display: block; }
+    .config-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .config-row { display: flex; gap: 8px; align-items: center; }
+    .config-input {
+      flex: 1; padding: 7px 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: var(--font); font-size: 13px; outline: none;
+    }
+    .config-input:focus { border-color: rgba(31,200,122,.4); }
+    .config-save {
+      padding: 7px 14px;
+      background: var(--accent2); border: 1px solid var(--accent);
+      border-radius: 8px; color: var(--accent);
+      font-family: var(--font); font-size: 13px; cursor: pointer;
+    }
+    .config-note {
+      font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5;
+    }
+    .config-note code {
+      background: var(--surface); padding: 1px 5px;
+      border-radius: 4px; font-size: 11px; color: #85b7eb;
+    }
+
+    /* ── Config toggle btn ── */
+    .cfg-toggle {
+      width: 100%; max-width: 680px;
+      text-align: right; margin-top: 6px;
+    }
+    .cfg-toggle button {
+      background: transparent; border: none;
+      color: var(--muted); font-size: 12px;
+      font-family: var(--font); cursor: pointer;
+    }
+    .cfg-toggle button:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo">🧠</div>
+  <div>
+    <div class="app-title">StrokePredict Assistant</div>
+    <div class="app-sub">Analyse des facteurs de risque AVC</div>
+  </div>
+  <div class="status-pill"><div class="dot"></div> En ligne</div>
+</header>
+
+<div class="chat-window">
+  <!-- Sélecteur de mode -->
+  <div class="mode-bar">
+    <button class="mode-btn active" id="btn-claude" onclick="setMode('claude')">Mode Claude (IA générale)</button>
+    <button class="mode-btn" id="btn-api" onclick="setMode('api')">Mode FastAPI (ton modèle)</button>
+  </div>
+
+  <!-- Messages -->
+  <div id="messages">
+    <div class="msg bot">
+      <div class="avatar">🧠</div>
+      <div class="bubble">
+        Bonjour ! Je suis l'assistant <strong>StrokePredict</strong>.<br><br>
+        Je peux analyser tes facteurs de risque d'AVC et te donner des conseils personnalisés.<br><br>
+        Par où veux-tu commencer ?
+      </div>
+    </div>
+  </div>
+
+  <!-- Boutons rapides -->
+  <div class="quick-bar">
+    <button class="qbtn" onclick="quickSend('Évaluer mon risque d\'AVC')">Évaluer mon risque</button>
+    <button class="qbtn" onclick="quickSend('Quels sont les symptômes d\'un AVC ?')">Symptômes AVC</button>
+    <button class="qbtn" onclick="quickSend('Comment prévenir un AVC ?')">Prévention</button>
+  </div>
+
+  <!-- Zone de saisie -->
+  <div class="input-area">
+    <textarea id="user-input" placeholder="Écris ton message..." rows="1"></textarea>
+    <button id="send-btn" onclick="sendMessage()">
+      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+  <p class="disclaimer">Outil éducatif uniquement — ne remplace pas un avis médical professionnel</p>
+</div>
+
+<!-- Toggle config -->
+<div class="cfg-toggle">
+  <button onclick="toggleConfig()">⚙ Configurer l'API FastAPI</button>
+</div>
+
+<!-- Panel de configuration -->
+<div class="config-panel" id="config-panel">
+  <div class="config-label">URL de ton API FastAPI locale :</div>
+  <div class="config-row">
+    <input class="config-input" id="api-url" value="http://localhost:8000/predict" placeholder="http://localhost:8000/predict"/>
+    <button class="config-save" onclick="saveConfig()">Sauvegarder</button>
+  </div>
+  <p class="config-note">
+    Lance d'abord ton serveur : <code>uvicorn etape7_api_fastapi:app --reload --port 8000</code><br>
+    Ensuite active le <strong>Mode FastAPI</strong> ci-dessus. Le chatbot enverra les données à ton modèle XGBoost.
+  </p>
+</div>
+
+<script>
+// ── Configuration ──────────────────────────────────────────
+let MODE = 'claude'; // 'claude' ou 'api'
+let API_URL = 'http://localhost:8000/predict';
+let chatHistory = [];
+
+// Système prompt pour Claude
+const SYSTEM_PROMPT = `Tu es un assistant médical spécialisé dans la prédiction et la prévention des AVC (Accidents Vasculaires Cérébraux). Tu parles français et tu t'appelles "StrokePredict Assistant".
+
+Ton rôle :
+1. Collecter progressivement les facteurs de risque du patient : âge, genre, hypertension (oui/non), maladie cardiaque (oui/non), statut marital, type de travail, type de résidence (urbain/rural), taux de glucose moyen, IMC, statut tabagique.
+2. Analyser ces facteurs et estimer le niveau de risque d'AVC : FAIBLE / MODÉRÉ / ÉLEVÉ.
+3. Fournir des conseils personnalisés et des recommandations claires.
+
+Règles importantes :
+- Pose 1 ou 2 questions à la fois maximum.
+- Sois chaleureux, rassurant et professionnel.
+- Quand tu as assez d'informations (au moins 5 facteurs), fais une synthèse et donne une estimation du risque.
+- Pour le niveau de risque, utilise ce format exact au début de la ligne : [RISQUE: FAIBLE] ou [RISQUE: MODÉRÉ] ou [RISQUE: ÉLEVÉ]
+- Rappelle toujours que tu n'es pas un substitut à un médecin.
+- Les facteurs de risque principaux sont : âge > 60, hypertension, diabète (glycémie > 125), IMC > 30, tabagisme actif, maladie cardiaque.
+- Pour l'urgence AVC mémorise : FAST (Face, Arms, Speech, Time → appelle le 15).`;
+
+// ── Mode ───────────────────────────────────────────────────
+function setMode(m) {
+  MODE = m;
+  document.getElementById('btn-claude').classList.toggle('active', m === 'claude');
+  document.getElementById('btn-api').classList.toggle('active', m === 'api');
+  const notice = m === 'api'
+    ? '⚡ Mode FastAPI activé — les données seront envoyées à ton modèle XGBoost local.'
+    : '🤖 Mode Claude activé — l\'IA analyse tes facteurs de risque directement.';
+  addMessage('bot', notice, null);
+}
+
+function toggleConfig() {
+  document.getElementById('config-panel').classList.toggle('open');
+}
+
+function saveConfig() {
+  API_URL = document.getElementById('api-url').value.trim();
+  addMessage('bot', `✅ URL API sauvegardée : <em>${API_URL}</em>`);
+  document.getElementById('config-panel').classList.remove('open');
+}
+
+// ── Messages ───────────────────────────────────────────────
+function addMessage(role, html, riskLevel) {
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+
+  const av = document.createElement('div');
+  av.className = role === 'bot' ? 'avatar' : 'avatar user-av';
+  av.textContent = role === 'bot' ? '🧠' : 'Moi';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = html;
+
+  if (riskLevel) {
+    const badge = document.createElement('div');
+    badge.className = `risk-badge risk-${riskLevel}`;
+    const labels = { faible: '✓ Risque faible', modere: '⚠ Risque modéré', eleve: '✗ Risque élevé' };
+    badge.textContent = labels[riskLevel] || riskLevel;
+    bubble.appendChild(badge);
+  }
+
+  wrap.appendChild(av);
+  wrap.appendChild(bubble);
+  document.getElementById('messages').appendChild(wrap);
+  scrollBottom();
+}
+
+function showTyping() {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg bot';
+  wrap.id = 'typing';
+  const av = document.createElement('div');
+  av.className = 'avatar';
+  av.textContent = '🧠';
+  const t = document.createElement('div');
+  t.className = 'typing';
+  t.innerHTML = '<span></span><span></span><span></span>';
+  wrap.appendChild(av);
+  wrap.appendChild(t);
+  document.getElementById('messages').appendChild(wrap);
+  scrollBottom();
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing');
+  if (t) t.remove();
+}
+
+function scrollBottom() {
+  const m = document.getElementById('messages');
+  m.scrollTop = m.scrollHeight;
+}
+
+function formatText(t) {
+  return t
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/^- (.+)/gm, '<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)+/g, m => `<ul>${m}</ul>`)
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
+// ── Envoi du message ───────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('user-input');
+  const btn = document.getElementById('send-btn');
+  const text = input.value.trim();
+  if (!text || btn.disabled) return;
+
+  addMessage('user', text);
+  chatHistory.push({ role: 'user', content: text });
+  input.value = '';
+  input.style.height = 'auto';
+  btn.disabled = true;
+  showTyping();
+
+  try {
+    if (MODE === 'claude') {
+      await sendToClaude(text);
+    } else {
+      await sendToFastAPI(text);
+    }
+  } catch (e) {
+    removeTyping();
+    addMessage('bot', `❌ Erreur : ${e.message}. Vérifie ta connexion ou l'URL de l'API.`);
+  }
+
+  btn.disabled = false;
+  input.focus();
+}
+
+// ── Mode Claude ────────────────────────────────────────────
+async function sendToClaude(text) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: SYSTEM_PROMPT,
+      messages: chatHistory
+    })
+  });
+  const data = await res.json();
+  const reply = data.content?.[0]?.text || 'Désolé, une erreur s\'est produite.';
+  chatHistory.push({ role: 'assistant', content: reply });
+
+  let riskLevel = null;
+  let clean = reply;
+  const m = reply.match(/\[RISQUE:\s*(FAIBLE|MODÉRÉ|ÉLEVÉ)\]/i);
+  if (m) {
+    const r = m[1].toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    riskLevel = r === 'FAIBLE' ? 'faible' : r === 'MODERE' ? 'modere' : 'eleve';
+    clean = reply.replace(/\[RISQUE:\s*[^\]]+\]/gi, '').trim();
+  }
+
+  removeTyping();
+  addMessage('bot', formatText(clean), riskLevel);
+}
+
+// ── Mode FastAPI ───────────────────────────────────────────
+// Ce mode collecte les réponses et appelle ton modèle XGBoost
+let patientData = {};
+let collectStep = 0;
+const STEPS = [
+  { key: 'age',               ask: 'Quel est ton âge ?' },
+  { key: 'gender',            ask: 'Quel est ton sexe ? (Male / Female)' },
+  { key: 'hypertension',      ask: 'As-tu de l\'hypertension artérielle ? (0 = non, 1 = oui)' },
+  { key: 'heart_disease',     ask: 'As-tu une maladie cardiaque ? (0 = non, 1 = oui)' },
+  { key: 'ever_married',      ask: 'Es-tu marié(e) ? (Yes / No)' },
+  { key: 'work_type',         ask: 'Quel est ton type de travail ? (Private / Self-employed / Govt_job / children / Never_worked)' },
+  { key: 'Residence_type',    ask: 'Tu habites en zone Urbaine ou Rurale ? (Urban / Rural)' },
+  { key: 'avg_glucose_level', ask: 'Quel est ton taux de glucose moyen (mg/dL) ? (ex: 90)' },
+  { key: 'bmi',               ask: 'Quel est ton IMC (indice de masse corporelle) ? (ex: 25.5)' },
+  { key: 'smoking_status',    ask: 'Statut tabagique ? (formerly smoked / never smoked / smokes / Unknown)' },
+];
+
+async function sendToFastAPI(text) {
+  if (collectStep === 0) {
+    patientData = {};
+    removeTyping();
+    addMessage('bot', 'Je vais collecter tes données pour les envoyer à ton modèle XGBoost.<br><br>' + STEPS[0].ask);
+    collectStep = 1;
+    return;
+  }
+
+  // Enregistre la réponse précédente
+  const step = STEPS[collectStep - 1];
+  let val = text.trim();
+  if (['age', 'hypertension', 'heart_disease'].includes(step.key)) val = parseInt(val) || 0;
+  if (['avg_glucose_level', 'bmi'].includes(step.key)) val = parseFloat(val) || 0;
+  patientData[step.key] = val;
+
+  if (collectStep < STEPS.length) {
+    removeTyping();
+    addMessage('bot', `Reçu ✓ <em>${step.key} = ${val}</em><br><br>${STEPS[collectStep].ask}`);
+    collectStep++;
+    return;
+  }
+
+  // Toutes les données sont collectées → appel API
+  removeTyping();
+  addMessage('bot', '⏳ Envoi à ton API FastAPI...<br><em>' + API_URL + '</em>');
+  showTyping();
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patientData)
+  });
+
+  if (!res.ok) throw new Error(`API a répondu ${res.status}`);
+  const result = await res.json();
+
+  // Affiche le résultat
+  const prob = result?.prediction?.stroke_risk ?? result?.probability ?? result?.score ?? '?';
+  const label = result?.prediction?.stroke_label ?? result?.label ?? '?';
+  const interp = result?.prediction?.interpretation ?? '';
+  const riskLevel = typeof prob === 'number'
+    ? (prob > 0.7 ? 'eleve' : prob > 0.4 ? 'modere' : 'faible')
+    : null;
+
+  const html = `
+    <strong>Résultat de ton modèle XGBoost :</strong><br><br>
+    Probabilité d'AVC : <strong>${typeof prob === 'number' ? (prob * 100).toFixed(1) + '%' : prob}</strong><br>
+    Label prédit : <strong>${label === 1 ? 'AVC détecté' : label === 0 ? 'Pas d\'AVC' : label}</strong><br>
+    ${interp ? '<br>' + interp : ''}
+    <br><br><em>⚠ Résultat du modèle — consulte un médecin pour un diagnostic réel.</em>
+  `;
+
+  removeTyping();
+  addMessage('bot', html, riskLevel);
+  collectStep = 0;
+  patientData = {};
+}
+
+function quickSend(text) {
+  document.getElementById('user-input').value = text;
+  sendMessage();
+}
+
+// Auto-resize textarea
+const inp = document.getElementById('user-input');
+inp.addEventListener('input', () => {
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 100) + 'px';
+});
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+</script>
+</body>
+</html>

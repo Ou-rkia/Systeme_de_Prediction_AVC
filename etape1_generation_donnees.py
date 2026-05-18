@@ -1,94 +1,104 @@
 # =============================================================
-# ÉTAPE 1 : GÉNÉRATION DES DONNÉES SIMULÉES
+# ÉTAPE 1 : CHARGEMENT DES DONNÉES RÉELLES (Kaggle)
+# Dataset : Healthcare Dataset Stroke Data
 # Compatible : VS Code Local | CPU only | Pas de GPU requis
 # =============================================================
 
-import numpy as np
 import pandas as pd
 from pathlib import Path
 
-SEED = 42
-np.random.seed(SEED)
+DATA_PATH = Path("data/raw/stroke_data.csv")
 
-N_STROKE    = 500
-N_NO_STROKE = 500
-OUTPUT_PATH = "data/raw/stroke_data.csv"
-DATA_PATH = Path(OUTPUT_PATH)
+EXPECTED_COLUMNS = [
+    "id", "gender", "age", "hypertension", "heart_disease",
+    "ever_married", "work_type", "Residence_type",
+    "avg_glucose_level", "bmi", "smoking_status", "stroke"
+]
 
+def validate_dataset(df: pd.DataFrame) -> None:
+    """Vérifie que le fichier chargé est bien le bon dataset Kaggle."""
 
-def generate_stroke_cases(n):
-    return pd.DataFrame({
-        "age":               np.random.normal(68, 10, n).clip(30, 95),
-        "gender":            np.random.choice(["Male", "Female"], n, p=[0.48, 0.52]),
-        "hypertension":      np.random.choice([0, 1], n, p=[0.35, 0.65]),
-        "heart_disease":     np.random.choice([0, 1], n, p=[0.40, 0.60]),
-        "ever_married":      np.random.choice(["Yes", "No"], n, p=[0.85, 0.15]),
-        "work_type":         np.random.choice(
-            ["Private", "Self-employed", "Govt_job", "children", "Never_worked"],
-            n, p=[0.55, 0.25, 0.15, 0.03, 0.02]),
-        "Residence_type":    np.random.choice(["Urban", "Rural"], n, p=[0.55, 0.45]),
-        "avg_glucose_level": np.random.normal(130, 40, n).clip(55, 300),
-        "bmi":               np.random.normal(32, 7, n).clip(15, 55),
-        "smoking_status":    np.random.choice(
-            ["formerly smoked", "never smoked", "smokes", "Unknown"],
-            n, p=[0.35, 0.30, 0.25, 0.10]),
-        "stroke": np.ones(n, dtype=int),
-    })
+    # Vérification des colonnes
+    missing_cols = [c for c in EXPECTED_COLUMNS if c not in df.columns]
+    if missing_cols:
+        raise ValueError(
+            f"Colonnes manquantes dans le fichier : {missing_cols}\n"
+            f"Colonnes trouvées : {list(df.columns)}\n"
+            f"Vérifie que c'est bien le fichier Kaggle 'healthcare-dataset-stroke-data.csv'."
+        )
 
+    # Vérification de la colonne cible
+    if not set(df["stroke"].dropna().unique()).issubset({0, 1}):
+        raise ValueError("La colonne 'stroke' doit contenir uniquement 0 et 1.")
 
-def generate_no_stroke_cases(n):
-    return pd.DataFrame({
-        "age":               np.random.normal(43, 15, n).clip(10, 90),
-        "gender":            np.random.choice(["Male", "Female"], n, p=[0.49, 0.51]),
-        "hypertension":      np.random.choice([0, 1], n, p=[0.80, 0.20]),
-        "heart_disease":     np.random.choice([0, 1], n, p=[0.90, 0.10]),
-        "ever_married":      np.random.choice(["Yes", "No"], n, p=[0.60, 0.40]),
-        "work_type":         np.random.choice(
-            ["Private", "Self-employed", "Govt_job", "children", "Never_worked"],
-            n, p=[0.58, 0.16, 0.14, 0.09, 0.03]),
-        "Residence_type":    np.random.choice(["Urban", "Rural"], n, p=[0.52, 0.48]),
-        "avg_glucose_level": np.random.normal(90, 25, n).clip(55, 250),
-        "bmi":               np.random.normal(27, 6, n).clip(12, 50),
-        "smoking_status":    np.random.choice(
-            ["formerly smoked", "never smoked", "smokes", "Unknown"],
-            n, p=[0.18, 0.48, 0.18, 0.16]),
-        "stroke": np.zeros(n, dtype=int),
-    })
+    # Vérification taille minimale
+    if len(df) < 100:
+        raise ValueError(f"Dataset trop petit ({len(df)} lignes). Vérifie le fichier.")
+
+    print("   Validation OK.")
 
 
-def generate_dataset():
-    df = pd.concat(
-        [generate_stroke_cases(N_STROKE), generate_no_stroke_cases(N_NO_STROKE)],
-        ignore_index=True
-    )
-    df = df.sample(frac=1, random_state=SEED).reset_index(drop=True)
-    df.insert(0, "id", range(1, len(df) + 1))
+def load_dataset() -> pd.DataFrame:
+    """
+    Charge le dataset réel Kaggle depuis data/raw/stroke_data.csv.
+    Affiche un résumé clair des données.
+    """
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"\n❌ Fichier introuvable : {DATA_PATH}\n\n"
+            f"Pour obtenir le dataset :\n"
+            f"   1. Va sur : https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset\n"
+            f"   2. Télécharge 'healthcare-dataset-stroke-data.csv'\n"
+            f"   3. Renomme-le en 'stroke_data.csv'\n"
+            f"   4. Place-le dans le dossier : data/raw/\n"
+        )
 
-    # Introduire ~13% de NaN dans bmi
-    idx = df.sample(frac=0.13, random_state=SEED).index
-    df.loc[idx, "bmi"] = np.nan
+    print(f"Chargement des données réelles -> {DATA_PATH}")
+    df = pd.read_csv(DATA_PATH)
 
-    output_path = Path(OUTPUT_PATH)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False)
+    validate_dataset(df)
 
-    print(f"Dataset sauvegarde -> {output_path}")
-    print(f"   Lignes       : {len(df)}")
-    print(f"   AVC (1)      : {df['stroke'].sum()}")
-    print(f"   Sain (0)     : {(df['stroke']==0).sum()}")
-    print(f"   NaN total    : {df.isnull().sum().sum()}")
+    # Résumé
+    n_total   = len(df)
+    n_stroke  = int(df["stroke"].sum())
+    n_healthy = int((df["stroke"] == 0).sum())
+    n_nan     = int(df.isnull().sum().sum())
+    pct_pos   = n_stroke / n_total * 100
+
+    print(f"   Lignes totales  : {n_total}")
+    print(f"   AVC (stroke=1)  : {n_stroke}  ({pct_pos:.1f}%)")
+    print(f"   Sains (stroke=0): {n_healthy}")
+    print(f"   Valeurs NaN     : {n_nan}  (colonne bmi principalement)")
+    print(f"   Colonnes        : {list(df.columns)}")
+
+    # Avertissement déséquilibre
+    if pct_pos < 10:
+        print(
+            f"\n   ⚠  Dataset déséquilibré ({pct_pos:.1f}% positifs).\n"
+            f"      SMOTE sera appliqué à l'étape 3 pour corriger ce déséquilibre."
+        )
+
     return df
 
 
-def load_or_generate_dataset(force_generate=False):
-    if DATA_PATH.exists() and not force_generate:
-        print(f"Fichier existant trouve -> {DATA_PATH}")
-        print("   Utilisation des donnees reales existantes sans regeneration.")
-        return pd.read_csv(DATA_PATH)
+# Alias pour compatibilité avec le reste du pipeline
+def load_or_generate_dataset(force_generate=False) -> pd.DataFrame:
+    """
+    Remplace l'ancienne fonction qui générait des données synthétiques.
+    Maintenant charge uniquement les données réelles Kaggle.
+    Le paramètre force_generate est conservé pour compatibilité mais ignoré.
+    """
+    if force_generate:
+        print("⚠  Paramètre force_generate ignoré : les données sont réelles, pas générées.")
 
-    return generate_dataset()
+    return load_dataset()
 
 
 if __name__ == "__main__":
     df = load_or_generate_dataset()
+    print("\nAperçu des données :")
     print(df.head())
+    print("\nTypes des colonnes :")
+    print(df.dtypes)
+    print("\nValeurs manquantes par colonne :")
+    print(df.isnull().sum()[df.isnull().sum() > 0])

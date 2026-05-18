@@ -1,8 +1,8 @@
 {
-  "model_name": "XGBoost",
-  "run_id": "a2945511f9a94bd9bfce55f31857c4c4",
-  "test_f1": 0.1910828025477707,
-  "test_recall": 0.3,
-  "test_auc_roc": 0.7633539094650206,
-  "registered_at": "2026-05-16T11:57:56.329791"
+  "model_name": "SVM",
+  "run_id": "08534667209a4f3eb409a78fff82fbe6",
+  "test_f1": 0.17647058823529413,
+  "test_recall": 0.36,
+  "test_auc_roc": 0.7278395061728394,
+  "registered_at": "2026-05-18T15:31:58.928645"
 }

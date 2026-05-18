@@ -13,6 +13,7 @@ from datetime      import datetime
 from typing        import Optional
 
 from fastapi           import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic          import BaseModel, Field, field_validator
 
 # ── Chemins ──────────────────────────────────────────────────
@@ -96,6 +97,15 @@ app = FastAPI(
     title="StrokePredict API",
     description="API de prédiction du risque d'AVC",
     version=MODEL_VERSION,
+)
+
+# ── Configuration CORS ─────────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Autorise toutes les origines (pour le fichier HTML local)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 _model        = None
